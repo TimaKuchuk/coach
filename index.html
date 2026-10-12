@@ -72,6 +72,7 @@ textarea.inp{min-height:96px;resize:none;line-height:1.4}
 .optc .ic{font-size:24px;display:block;margin-bottom:4px}.optc b{display:block;font-size:15px}.optc span{font-size:12px;color:var(--muted)}
 .optc.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--card))}
 .picker{display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--field);border-radius:16px;padding:14px 16px;font-weight:600;text-align:left}
+.picker.sm{padding:11px 12px;font-size:14.5px;border-radius:14px}.picker.sm .v{gap:0;min-width:0}.picker.sm .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.picker.sm .ch{font-size:16px;margin-left:4px}
 .picker .v{display:flex;align-items:center;gap:10px}.picker .ch{color:var(--muted);font-size:18px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:99px;background:var(--field);font-size:13.5px;font-weight:600;color:var(--text)}
@@ -232,6 +233,7 @@ const todayStr = () => ymd(new Date());
 const addD = (s,n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
 const diffD = (a,b) => Math.round((parseYmd(b)-parseYmd(a))/864e5);
 const ageOf = b => { const [y,m,d] = b.split('-').map(Number), t = new Date(); let a = t.getFullYear()-y; if (t.getMonth()+1 < m || (t.getMonth()+1 === m && t.getDate() < d)) a--; return a; };
+const birthTxt = b => b ? b.split('-').reverse().join('.')+' · '+ageOf(b) : 'Выбрать';
 const fmtLong = s => { const [y,m,d] = s.split('-').map(Number); return d+' '+MONTHS[m-1]+' '+y; };
 const fmtShort = s => { const [,m,d] = s.split('-').map(Number); return d+' '+MONTHS[m-1].slice(0,3).replace(/^мая.*/,'мая'); };
 const plural = (n,a,b,c) => { const m = Math.abs(n)%100, k = m%10; return (m>10&&m<20)?c:k===1?a:(k>=2&&k<=4)?b:c; };
@@ -581,8 +583,7 @@ function renderProfile(me, backTo){
   page((backTo ? topbar() : '') + `<div class="row" style="margin:6px 2px 18px;gap:14px"><div class="av" style="background:${col(me.name)};width:62px;height:62px;font-size:26px">${esc(ini(me.name))}</div><div><h1>${esc(me.name)}</h1><div class="muted sm">Один профиль на все челленджи</div></div></div>
     <div class="card"><b>Параметры</b>
       <div class="grid2"><div><label class="l">Рост</label>${numField('p-h',{value:me.height,min:100,max:250,step:1,unit:'см'})}</div><div><label class="l">Вес</label>${numField('p-w',{value:me.weight,min:30,max:300,step:0.1,unit:'кг',dec:1})}</div></div>
-      <div class="grid2"><label class="l">Дата рождения</label><button class="picker" id="p-b" data-act="pick-birth" data-v="${esc(me.birth||'')}"><span class="v"><span>🎂</span><span class="txt">${me.birth ? fmtLong(me.birth)+' · '+ageOf(me.birth)+' '+plural(ageOf(me.birth),'год','года','лет') : 'Выбрать дату'}</span></span><span class="ch">›</span></button>
-      <label class="l">Пол</label><button class="picker" id="p-s" data-act="pick-sex" data-v="${esc(me.sex||'')}"><span class="v"><span>${me.sex==='f'?'👩':me.sex==='m'?'👨':'🙂'}</span><span class="txt">${me.sex==='f'?'Женский':me.sex==='m'?'Мужской':'Выбрать'}</span></span><span class="ch">›</span></button>
+      <div class="grid2"><div class="grid2"><div><label class="l">Дата рождения</label><button class="picker sm" id="p-b" data-act="pick-birth" data-v="${esc(me.birth||'')}"><span class="v"><span class="txt">${birthTxt(me.birth)}</span></span><span class="ch">›</span></button></div><div><label class="l">Пол</label><button class="picker sm" id="p-s" data-act="pick-sex" data-v="${esc(me.sex||'')}"><span class="v"><span class="txt">${me.sex==='f'?'Женский':me.sex==='m'?'Мужской':'Выбрать'}</span></span><span class="ch">›</span></button></div></div>
       <label class="l">Активность</label><div class="opts" id="p-act" data-value="${esc(me.activity)}">${Object.entries(ACTV).map(([k,v]) => `<button class="optc ${k===me.activity?'on':''}" data-act="act" data-v="${k}"><span class="ic">${v.i}</span><b>${v.t}</b><span>${v.d}</span></button>`).join('')}</div>
       <p class="muted xs" style="margin:12px 2px 0">Вес обновляется сам, когда ты записываешь его в челленджах, а нормы пересчитываются.</p>
       <button class="btn" data-act="save-profile" data-back="${esc(backTo||'')}">Сохранить</button></div>
@@ -629,11 +630,11 @@ const ACT = {
   async 'pick-birth'(el){
     const t = todayStr(), y = Number(t.slice(0,4));
     const v = await pickDate({ title:'Дата рождения', value: el.dataset.v || (y-25)+'-06-15', min:(y-100)+'-01-01', max:(y-10)+t.slice(4), years:true });
-    if (!v) return; el.dataset.v = v; $('.txt', el).textContent = fmtLong(v)+' · '+ageOf(v)+' '+plural(ageOf(v),'год','года','лет'); hap();
+    if (!v) return; el.dataset.v = v; $('.txt', el).textContent = birthTxt(v); hap();
   },
   async 'pick-sex'(el){
     const v = await pickOption({ title:'Пол', value:el.dataset.v, options:[{v:'m',t:'Мужской',i:'👨'},{v:'f',t:'Женский',i:'👩'}] });
-    if (!v) return; el.dataset.v = v; $('.txt', el).textContent = v === 'f' ? 'Женский' : 'Мужской'; el.firstChild.firstChild.textContent = v === 'f' ? '👩' : '👨';
+    if (!v) return; el.dataset.v = v; $('.txt', el).textContent = v === 'f' ? 'Женский' : 'Мужской';
   },
   async 'pick-date'(el){
     const w = el.dataset.which, v = await pickDate({ title: w === 'start' ? 'Старт челленджа' : 'Финиш челленджа', value: el.dataset.v, min: w === 'end' ? $('#c-start').dataset.v : undefined });
