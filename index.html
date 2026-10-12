@@ -512,7 +512,14 @@ VIEWS.challenge = async (p, nav) => {
   const id = p.id; S.ch = id;
   swr('ch:'+id, 'getChallenge', { id }, nav, renderChallenge, topbar()+skel(190,60,260,200));
   boot().catch(() => {});
+  inviteLink(id).catch(() => {}); // заранее, чтобы копирование шло сразу по нажатию
 };
+const INV = {};
+async function inviteLink(id){
+  if (INV[id]) return INV[id];
+  if (!/YOUR_BOT/.test(BOT_APP_LINK)) return INV[id] = BOT_APP_LINK + '?startapp=' + id;
+  return INV[id] = (await api('inviteLink', { id })).link;
+}
 function applyChallenge(d){ cache.set('ch:'+d.challenge.id, d); if (CUR.v === 'challenge' && CUR.p.id === d.challenge.id) renderChallenge(d); }
 const chData = () => cache.get('ch:'+CUR.p.id);
 
@@ -652,10 +659,17 @@ const ACT = {
     const d = await boot(); if (!d.me.complete) { toast('Сначала заполни профиль, по нему ИИ посчитает цель'); return go('profile', { backTo:CUR.p.id }); }
     await api('join', { id:CUR.p.id }); cache.set('ch:'+CUR.p.id, null); S.bootP = null; hapOk(); go('goal', { id:CUR.p.id }, { replace:true });
   }); },
-  share(){
-    if (/YOUR_BOT/.test(BOT_APP_LINK)) return toast('Впиши ссылку на бота в BOT_APP_LINK в index.html');
-    const d = chData(); const link = BOT_APP_LINK + '?startapp=' + CUR.p.id;
-    tg.openTelegramLink ? tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent('Го на челлендж «'+(d ? d.challenge.name : '')+'»! Заходи и ставь свою цель 💪')) : window.open(link);
+  share(el){
+    const id = CUR.p.id;
+    const copy = link => {
+      let ok = false;
+      try { const ta = document.createElement('textarea'); ta.value = link; ta.setAttribute('readonly',''); ta.style.cssText = 'position:fixed;opacity:0;top:0'; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 9999); ok = document.execCommand('copy'); ta.remove(); } catch (e) {}
+      if (ok) return Promise.resolve(true);
+      try { return navigator.clipboard.writeText(link).then(() => true, () => false); } catch (e) { return Promise.resolve(false); }
+    };
+    const done = ok => { if (ok) { hapOk(); toast('Ссылка скопирована — отправь её другу в Telegram'); } else toast('Не удалось скопировать. Ссылка: ' + INV[id], 10000); };
+    if (INV[id]) return copy(INV[id]).then(done);
+    return withBusy(el, async () => { await inviteLink(id); done(await copy(INV[id])); });
   },
   goal: () => go('goal', { id:CUR.p.id }),
   'goal-ex': el => { $('#g-text').value = el.dataset.t; hap(); },
@@ -710,7 +724,7 @@ const ACT = {
   },
 
   'save-profile'(el){ withBusy(el, async () => {
-    const me = await api('saveProfile', { height:numVal('p-h'), weight:numVal('p-w'), birth:$('#p-b').dataset.v, sex:$('#p-s').dataset.v, activity:$('#p-act').dataset.value });
+    const me = await api('saveProfile', { height:numVal('p-h'), weight:numVal('p-w'), birth:$('#p-b').dataset.v, age:($('#p-b').dataset.v ? ageOf($('#p-b').dataset.v) : ''), sex:$('#p-s').dataset.v, activity:$('#p-act').dataset.value });
     S.me = me; S.bootP = null; const b = cache.get('boot'); if (b) { b.me = me; cache.set('boot', b); } hapOk();
     const back = el.dataset.back;
     if (back) { await api('join', { id:back }); cache.set('ch:'+back, null); HIST.pop(); return go('goal', { id:back }, { replace:true }); }
